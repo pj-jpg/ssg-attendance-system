@@ -1,0 +1,161 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <title>Supreme Student Goverment Attendance</title>
+
+  <!-- 1️⃣ EmailJS SDK (load first!) -->
+  <script src="https://cdn.emailjs.com/sdk/3.11.0/email.min.js"></script>
+  <script>
+    emailjs.init("5fsWDq-gFzG722sLR"); // Your public key from EmailJS
+
+    function sendAttendanceEmail(name, email, action, time) {
+      return emailjs.send("20252026", "template_5bz28a9", {
+        student_name: name,
+        student_email: email,
+        action: action,
+        time: time
+      })
+      .then(() => {
+        console.log("Email sent successfully!");
+      })
+      .catch(err => {
+        console.error("EmailJS Error:", err);
+      });
+    }
+  </script>
+
+  <!-- 2️⃣ Firebase Module Script -->
+  <script type="module">
+    import { initializeApp } from "https://www.gstatic.com/firebasejs/10.12.0/firebase-app.js";
+    import { getFirestore, doc, getDoc, collection, addDoc } from "https://www.gstatic.com/firebasejs/10.12.0/firebase-firestore.js";
+
+    const firebaseConfig = {
+      apiKey: "AIzaSyDcR5lGiiu1fme7-AAzIc6c2NNr16ClUE0",
+      authDomain: "ssg-attendance-3e025.firebaseapp.com",
+      projectId: "ssg-attendance-3e025",
+      storageBucket: "ssg-attendance-3e025.firebasestorage.app",
+      messagingSenderId: "741150700439",
+      appId: "1:741150700439:web:2127ca95884bd59d364ad2",
+      measurementId: "G-MYZ3B274RJ"
+    };
+    const app = initializeApp(firebaseConfig);
+    const db = getFirestore(app);
+
+    let videoStream = null;
+    let capturedPhoto = "";
+
+    window.startCamera = async () => {
+      const video = document.getElementById("video");
+      videoStream = await navigator.mediaDevices.getUserMedia({ video: true });
+      video.srcObject = videoStream;
+    };
+
+    window.capturePhoto = () => {
+      const video = document.getElementById("video");
+      const canvas = document.createElement("canvas");
+      canvas.width = video.videoWidth;
+      canvas.height = video.videoHeight;
+      canvas.getContext("2d").drawImage(video, 0, 0);
+      capturedPhoto = canvas.toDataURL("image/png");
+
+      videoStream.getTracks().forEach(t => t.stop());
+      document.getElementById("video").style.display = "none";
+      document.getElementById("photoPreview").src = capturedPhoto;
+      document.getElementById("photoPreview").style.display = "block";
+      document.getElementById("retake").style.display = "inline-block";
+    };
+
+    window.retakePhoto = () => {
+      capturedPhoto = "";
+      document.getElementById("photoPreview").style.display = "none";
+      document.getElementById("retake").style.display = "none";
+      document.getElementById("video").style.display = "block";
+      startCamera();
+    };
+
+    window.submitAttendance = async (action) => {
+      const studentId = document.getElementById("studentId").value.trim();
+      if (!studentId) { alert("Enter Student ID"); return; }
+
+      const studentRef = doc(db, "students", studentId);
+      const snap = await getDoc(studentRef);
+      if (!snap.exists()) { alert("Student ID not found!"); return; }
+
+      const sdata = snap.data();
+      const email = sdata.email || `${studentId}@heroes1979.edu.ph`;
+      const name = sdata.name;
+      const timestamp = new Date().toLocaleString();
+
+      try {
+        // 1️⃣ Save to Firestore
+        await addDoc(collection(db, "SSG_ATTENDANCE"), {
+          studentId,
+          name,
+          email,
+          action,
+          timestamp,
+          photo: capturedPhoto
+        });
+
+        // 2️⃣ Send Email
+        await sendAttendanceEmail(name, email, action, timestamp);
+
+        alert("Attendance saved and email sent!");
+      } catch (err) {
+        console.error("Error saving attendance or sending email:", err);
+        alert("Failed to send email. SCREENSHOT IT AS PROOF! Check console.");
+      }
+
+      document.getElementById("studentId").value = "";
+      retakePhoto();
+    };
+
+    window.onload = startCamera;
+  </script>
+
+  <style>
+    body {
+      font-family: Arial, sans-serif;
+      background: linear-gradient(135deg,#f3f5f7,#dce3eb);
+      display:flex;
+      align-items:center;
+      justify-content:center;
+      height:100vh;
+      margin:0;
+    }
+    .card {
+      background:white;
+      padding:30px;
+      border-radius:20px;
+      box-shadow:0 5px 15px rgba(0,0,0,0.1);
+      text-align:center;
+      width:350px;
+    }
+    .logo { width:100px; margin-bottom:10px; }
+    input { width:80%; padding:10px; margin:10px auto; border:1px solid #ccc; border-radius:8px; text-align:center; }
+    video, img { width:100%; border-radius:10px; margin-top:10px; border:1px solid #ddd; }
+    button { padding:10px 20px; margin:5px; border:none; border-radius:10px; background:#007bff; color:white; font-size:16px; cursor:pointer; }
+    button:hover { background:#0056b3; }
+    a { display:block; margin-top:15px; text-decoration:none; color:#007bff; }
+  </style>
+</head>
+<body>
+  <div class="card">
+    <img src="ssglogo.jpg" alt="SSG Logo" class="logo">
+    <h2>Supreme Student Goverment Attendance</h2>
+
+    <input type="text" id="studentId" placeholder="Enter Student ID"><br>
+
+    <video id="video" autoplay playsinline></video>
+    <img id="photoPreview" style="display:none;">
+    <button onclick="capturePhoto()">Capture Photo</button>
+    <button id="retake" style="display:none;" onclick="retakePhoto()">Retake</button>
+    <br><br>
+    <button onclick="submitAttendance('Sign In')">Sign In</button>
+    <button onclick="submitAttendance('Sign Out')">Sign Out</button>
+
+    <a href="sadmin.html">Admin Panel</a>
+  </div>
+</body>
+</html>
